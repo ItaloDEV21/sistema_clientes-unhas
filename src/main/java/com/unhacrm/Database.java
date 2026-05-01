@@ -1,40 +1,67 @@
 package com.unhacrm;
+
 import java.sql.*;
 
 public class Database {
- // COLE AQUI OS DADOS QUE VOCÊ PEGOU NO RENDER
- private static final String HOST = "dpg-d75bar6a2pns73dlja4g-a";
- private static final String DB_NAME = "unha_db";
- private static final String USER = "karol_admin";
- private static final String PASS = "wHIBY6gKANjwuX3E7aAo7Vv9cAKE5dVB";
- private static final String PORT = "5432";
-
- // URL agora aponta para a internet
- private static final String URL = "jdbc:postgresql://" + HOST + ":" + PORT + "/" + DB_NAME + "?sslmode=require";
+ // O banco será um arquivo chamado "dados_crm.db" na pasta do seu projeto
+ private static final String URL = "jdbc:sqlite:dados_crm.db";
 
  public static Connection connect() throws SQLException {
-  return DriverManager.getConnection(URL, USER, PASS);
+  try {
+   // Carrega o driver do SQLite
+   Class.forName("org.sqlite.JDBC");
+  } catch (ClassNotFoundException e) {
+   System.err.println("Driver SQLite não encontrado!");
+  }
+  return DriverManager.getConnection(URL);
  }
 
  public static void init() {
   try (Connection conn = connect(); Statement stmt = conn.createStatement()) {
-   // No PostgreSQL o comando de ID é 'SERIAL', não AUTOINCREMENT
-   stmt.execute("CREATE TABLE IF NOT EXISTS clientes (" +
-           "id SERIAL PRIMARY KEY, " +
-           "nome TEXT, " +
-           "telefone TEXT UNIQUE, " +
-           "tipo_base TEXT, " +
-           "ultima_compra TEXT)");
 
-   stmt.execute("CREATE TABLE IF NOT EXISTS estoque (id INTEGER PRIMARY KEY, quantidade INTEGER)");
+   // 1. Criação da tabela de clientes local (com Bairro e Data de Nascimento)
+   stmt.execute("""
+                CREATE TABLE IF NOT EXISTS clientes (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    nome TEXT,
+                    telefone TEXT UNIQUE,
+                    bairro TEXT,
+                    data_nascimento TEXT,
+                    tipo_base TEXT,
+                    ultima_compra TEXT,
+                    valor_ultima_venda REAL DEFAULT 0.0
+                )
+            """);
 
-   // Inicializa estoque se estiver vazio
-   stmt.execute("INSERT INTO estoque(id, quantidade) " +
-           "SELECT 1, 0 WHERE NOT EXISTS (SELECT 1 FROM estoque WHERE id = 1)");
+   // 2. Tabela de estoque
+   stmt.execute("""
+                CREATE TABLE IF NOT EXISTS estoque (
+                    id INTEGER PRIMARY KEY,
+                    quantidade INTEGER
+                )
+            """);
 
-   System.out.println("Ligado ao banco de dados na nuvem com sucesso!");
+   // 3. Tabela de vendas (Financeiro)
+   stmt.execute("""
+                CREATE TABLE IF NOT EXISTS vendas (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    quantidade INTEGER NOT NULL,
+                    valor REAL NOT NULL,
+                    data TEXT DEFAULT (date('now')),
+                    criado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            """);
+
+   // 4. Inicializa o registro de estoque se estiver vazio
+   stmt.execute("""
+                INSERT OR IGNORE INTO estoque(id, quantidade) VALUES(1, 0)
+            """);
+
+   System.out.println("Banco de Dados LOCAL (SQLite) sincronizado com sucesso!");
+
   } catch (Exception e) {
-   System.err.println("Erro ao ligar ao banco na nuvem: " + e.getMessage());
+   System.err.println("Erro ao sincronizar banco local: " + e.getMessage());
+   e.printStackTrace();
   }
  }
 }
